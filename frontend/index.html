@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playlist API Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+        }
+        .results {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .song-item {
+            border: 1px solid #eee;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        .rating-stars {
+            display: inline-block;
+        }
+        .star {
+            cursor: pointer;
+            color: #ddd;
+            font-size: 18px;
+        }
+        .star.active {
+            color: #ffc107;
+        }
+        .pagination {
+            margin: 10px 0;
+        }
+        .pagination button {
+            margin: 2px;
+        }
+        .error {
+            color: red;
+            background: #ffe6e6;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            color: green;
+            background: #e6ffe6;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Playlist API Demo</h1>
+        <p style="text-align: center; color: #666;">Minimal frontend to demonstrate backend API functionality</p>
+
+        <!-- Health Check -->
+        <div class="section">
+            <h2>Health Check</h2>
+            <button onclick="checkHealth()">Check API Health</button>
+            <div id="healthResult" class="results"></div>
+        </div>
+
+        <!-- Get All Songs -->
+        <div class="section">
+            <h2>Get All Songs (with Pagination)</h2>
+            <label>Page: <input type="number" id="pageInput" value="1" min="1"></label>
+            <label>Per Page: <input type="number" id="perPageInput" value="5" min="1" max="100"></label>
+            <button onclick="getAllSongs()">Get Songs</button>
+            <div class="pagination" id="pagination"></div>
+            <div id="songsResult" class="results"></div>
+        </div>
+
+        <!-- Search Songs -->
+        <div class="section">
+            <h2>Search Songs by Title</h2>
+            <input type="text" id="searchInput" placeholder="Enter song title...">
+            <button onclick="searchSongs()">Search</button>
+            <div id="searchResult" class="results"></div>
+        </div>
+
+        <!-- Rate Songs -->
+        <div class="section">
+            <h2>Rate a Song</h2>
+            <label>Song ID: <input type="text" id="rateSongId" placeholder="Enter song ID..."></label>
+            <div class="rating-stars" id="ratingStars">
+                <span class="star" data-rating="1">★</span>
+                <span class="star" data-rating="2">★</span>
+                <span class="star" data-rating="3">★</span>
+                <span class="star" data-rating="4">★</span>
+                <span class="star" data-rating="5">★</span>
+            </div>
+            <button onclick="rateSong()">Rate Song</button>
+            <div id="rateResult" class="results"></div>
+        </div>
+
+        <!-- Get Song Rating -->
+        <div class="section">
+            <h2>Get Song Rating</h2>
+            <label>Song ID: <input type="text" id="getRatingSongId" placeholder="Enter song ID..."></label>
+            <button onclick="getSongRating()">Get Rating</button>
+            <div id="getRatingResult" class="results"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        // Health Check
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                document.getElementById('healthResult').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('healthResult').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Get All Songs
+        async function getAllSongs() {
+            const page = document.getElementById('pageInput').value;
+            const perPage = document.getElementById('perPageInput').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/songs?page=${page}&per_page=${perPage}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displaySongs(data);
+                    updatePagination(data.page, data.total_pages, data.total);
+                } else {
+                    document.getElementById('songsResult').innerHTML = `<div class="error">Error: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('songsResult').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Display songs
+        function displaySongs(data) {
+            const resultDiv = document.getElementById('songsResult');
+            let html = `Total: ${data.total} songs | Page: ${data.page}/${data.total_pages}\n\n`;
+            
+            data.songs.forEach(song => {
+                html += `ID: ${song.id}\n`;
+                html += `Title: ${song.title}\n`;
+                html += `Danceability: ${song.danceability}\n`;
+                html += `Energy: ${song.energy}\n`;
+                html += `Rating: ${song.star_rating || 'No ratings'}\n`;
+                html += `---\n`;
+            });
+            
+            resultDiv.textContent = html;
+        }
+
+        // Update pagination
+        function updatePagination(current, total, totalSongs) {
+            const pagination = document.getElementById('pagination');
+            if (total <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            if (current > 1) {
+                html += `<button onclick="changePage(${current - 1})">Previous</button>`;
+            }
+            
+            for (let i = Math.max(1, current - 2); i <= Math.min(total, current + 2); i++) {
+                const active = i === current ? 'style="background: #0056b3;"' : '';
+                html += `<button onclick="changePage(${i})" ${active}>${i}</button>`;
+            }
+            
+            if (current < total) {
+                html += `<button onclick="changePage(${current + 1})">Next</button>`;
+            }
+            
+            pagination.innerHTML = html;
+        }
+
+        // Change page
+        function changePage(page) {
+            document.getElementById('pageInput').value = page;
+            getAllSongs();
+        }
+
+        // Search Songs
+        async function searchSongs() {
+            const searchTerm = document.getElementById('searchInput').value.trim();
+            if (!searchTerm) {
+                document.getElementById('searchResult').innerHTML = '<div class="error">Please enter a search term</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/songs/search?title=${encodeURIComponent(searchTerm)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let html = `Found ${data.length} songs:\n\n`;
+                    data.forEach(song => {
+                        html += `ID: ${song.id}\n`;
+                        html += `Title: ${song.title}\n`;
+                        html += `Danceability: ${song.danceability}\n`;
+                        html += `Energy: ${song.energy}\n`;
+                        html += `Key: ${song.key}\n`;
+                        html += `Loudness: ${song.loudness}\n`;
+                        html += `Mode: ${song.mode}\n`;
+                        html += `Acousticness: ${song.acousticness}\n`;
+                        html += `Instrumentalness: ${song.instrumentalness}\n`;
+                        html += `Liveness: ${song.liveness}\n`;
+                        html += `Valence: ${song.valence}\n`;
+                        html += `Tempo: ${song.tempo}\n`;
+                        html += `Duration (ms): ${song.duration_ms}\n`;
+                        html += `Time Signature: ${song.time_signature}\n`;
+                        html += `Num Bars: ${song.num_bars}\n`;
+                        html += `Num Sections: ${song.num_sections}\n`;
+                        html += `Num Segments: ${song.num_segments}\n`;
+                        html += `Class: ${song.class_}\n`;
+                        html += `Star Rating: ${song.star_rating || 'No ratings'}\n`;
+                        html += `---\n`;
+                    });
+                    document.getElementById('searchResult').textContent = html;
+                } else {
+                    document.getElementById('searchResult').innerHTML = `<div class="error">Error: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('searchResult').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Rate Song
+        async function rateSong() {
+            const songId = document.getElementById('rateSongId').value.trim();
+            const selectedRating = document.querySelector('.star.active')?.dataset.rating;
+            
+            if (!songId || !selectedRating) {
+                document.getElementById('rateResult').innerHTML = '<div class="error">Please enter song ID and select a rating</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/songs/${songId}/rate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ rating: parseInt(selectedRating) })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('rateResult').innerHTML = 
+                        `<div class="success">Successfully rated! Average: ${data.average_rating}/5 (${data.total_ratings} ratings)</div>`;
+                } else {
+                    document.getElementById('rateResult').innerHTML = `<div class="error">Error: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('rateResult').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Get Song Rating
+        async function getSongRating() {
+            const songId = document.getElementById('getRatingSongId').value.trim();
+            
+            if (!songId) {
+                document.getElementById('getRatingResult').innerHTML = '<div class="error">Please enter a song ID</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/songs/${songId}/rating`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('getRatingResult').textContent = JSON.stringify(data, null, 2);
+                } else {
+                    document.getElementById('getRatingResult').innerHTML = `<div class="error">Error: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('getRatingResult').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Star rating functionality
+        document.querySelectorAll('.star').forEach(star => {
+            star.addEventListener('click', function() {
+                document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Handle Enter key in search
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchSongs();
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkHealth();
+        });
+    </script>
+</body>
+</html>
